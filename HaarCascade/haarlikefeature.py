@@ -11,6 +11,8 @@ class HaarlikeType(Enum):
     TYPES_COUNT = 5
 
 class HaarlikeFeature:
+    """Extract haar-like features from images.
+    """
 
     HaarWindow = [
         (2, 1),
@@ -21,45 +23,83 @@ class HaarlikeFeature:
     ]
 
     def __init__(self):
-        pass
+        self.features_cnt = -1
 
-    def extractFeatures(self, _ognImage):
-        """Extract features from an image.
+    def determineFeatures(self, width, height):
+        """Determine the features count while the window is (width, height),
+           as well as giving the descriptions of each feature.
+
+        Call this function before calling extractFeatures.
 
         Parameters
         ----------
-        _ognImage : array-like of shape = [height, width]
-            The original image.
+        width : int
+            The width of the window.
+        height : int
+            The height of the window.
 
         Returns
         -------
-        features : np.array of shape = [features_cnt, (x, y, w, h)]
+        features_cnt : int
+            The features count while the window is (width, height).
+        descriptions : list of shape = [features_cnt, [haartype, x, y, w, h]]
+            The descriptions of each feature.
         """
-        
-        ognImage = np.array(_ognImage)
-        height, width = ognImage.shape
-        
         features_cnt = 0
         for haartype in range(HaarlikeType.TYPES_COUNT.value):
             wndx, wndy = __class__.HaarWindow[haartype]
             for x in range(0, width-wndx+1):
                 for y in range(0, height-wndy+1):
                     features_cnt += int((width-x)/wndx)*int((height-y)/wndy)
-        print(features_cnt)
-        features = np.zeros((int(features_cnt), 5))
+                    
+        descriptions = np.zeros((features_cnt, 5))
+        for haartype in range(HaarlikeType.TYPES_COUNT.value):
+            wndx, wndy = __class__.HaarWindow[haartype]
+            for x in range(0, width-wndx+1):
+                for y in range(0, height-wndy+1):
+                    for w in range(wndx, width-x+1, wndx):
+                        for h in range(wndy, height-y+1, wndy):
+                            descriptions = [haartype, x, y, w, h]
+        
+        # print(features_cnt)
+        self.features_cnt = features_cnt
+        return self.features_cnt, descriptions
+
+    def extractFeatures(self, ognImage_):
+        """Extract features from an image.
+
+        Please call determineFeatures first.
+
+        Parameters
+        ----------
+        ognImage_ : array-like of shape = [height, width]
+            The original image.
+
+        Returns
+        -------
+        features : np.array of shape = [features_cnt, val]
+        """
+        ognImage = np.array(ognImage_)
+        height, width = ognImage.shape
+
+        # Call determineFeatures first.
+        if self.features_cnt == -1:
+            self.determineFeatures(width, height)
+        
+        features = np.zeros((int(self.features_cnt), 6))
 
         itgImage = self._getIntegralImage(ognImage)
 
         cnt = 0
         for haartype in range(HaarlikeType.TYPES_COUNT.value):
             wndx, wndy = __class__.HaarWindow[haartype]
-            print('Iterating on haar-like type',haartype,':',HaarlikeType(haartype))
+            # print('Iterating on haar-like type',haartype,':',HaarlikeType(haartype))
             for x in range(0, width-wndx+1):
                 for y in range(0, height-wndy+1):
                     for w in range(wndx, width-x+1, wndx):
                         for h in range(wndy, height-y+1, wndy):
-                            val = self._getFeatureIn(HaarlikeType(haartype), itgImage, x, y, w, h)
-                            features[cnt] = (val, x, y, w, h)
+                            features[cnt] = self._getFeatureIn(itgImage,
+                                HaarlikeType(haartype), x, y, w, h)
                             cnt += 1
         
         return features
@@ -86,7 +126,7 @@ class HaarlikeFeature:
             The integral image
         """
         h, w = ognImage.shape
-        print(w,h)
+        # print(w,h)
         itgImage = np.zeros((h+1, w+1))
 
         for y in range(1, h+1):
@@ -122,15 +162,15 @@ class HaarlikeFeature:
         h = int(h)
         return itgImage[h, w] + itgImage[y, x] - (itgImage[y, w] + itgImage[h, x])
 
-    def _getFeatureIn(self, feature_type, itgImage, x, y, w, h):
+    def _getFeatureIn(self, itgImage, feature_type, x, y, w, h):
         """Get haar feature in rectangle [x, y, w, h]
 
         Parameters
         ----------
-        feature_type : HaarlikeType
-            Tpye of the haar-like feature to extract.
         itgImage : np.array
             The integral image.
+        feature_type : HaarlikeType
+            Tpye of the haar-like feature to extract.
         x : int
             The starting column.
         y : int
