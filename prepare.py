@@ -1,3 +1,9 @@
+# 
+# prepare.py
+#   Prepare data for boostedcascade.
+# 
+# Author : Donny
+# 
 
 import numpy as np
 import scipy.misc

@@ -1,3 +1,9 @@
+# 
+# haarlikefeature.py
+#   Extract haar-like features from images.
+# 
+# Author : Donny
+# 
 
 import numpy as np
 from enum import Enum

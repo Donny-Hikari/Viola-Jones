@@ -1,3 +1,9 @@
+# 
+# boostedcascade.py
+#   Boosted cascade proposed by Viola & Jones
+# 
+# Author : Donny
+# 
 
 import numpy as np
 from sklearn.utils import shuffle as skshuffle
