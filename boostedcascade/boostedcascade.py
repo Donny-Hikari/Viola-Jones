@@ -18,15 +18,20 @@ class BoostedCascade:
 
     def __init__(self,
                  Ftarget, f, d,
-                 adaboostClassifier = AdaBoostClassifier(200,
-                    weak_classifier_ = DecisionStumpClassifier()),
+                 adaboostClassifier = AdaBoostClassifier(
+                     200,
+                     weak_classifier_ = DecisionStumpClassifier()
+                 ),
                  validset_rate = 0.3):
+        # Target false positive rate.
         self.Ftarget = Ftarget
+        # The maximum acceptable false positive rate per layer.
         self.f = f
+        # The minimum acceptable detection rate per layer
         self.d = d
         # Class of strong classifier, usu. AdaBoostClassifier
         self.SCClass = adaboostClassifier
-        # self.haarlikefeature = HaarlikeFeature()
+        # The ratio of valid set in the whole training set.
         self.validset_rate = validset_rate
 
         self.P = self.N = -1
@@ -164,7 +169,7 @@ class BoostedCascade:
         Returns
         -------
         yPred : np.array of shape = [n_samples]
-            The predict result.
+            The predicted result.
         f : float
             The false positive rate.
         d : float
@@ -202,13 +207,15 @@ class BoostedCascade:
 
         Parameters
         ----------
+        wcself : instance of WeakClassifier
+            The weak classifier.
         X_ : np.array of shape = [n_samples, n_features]
             The inputs of the testing samples.
 
         Returns
         -------
         yPred : np.array of shape = [n_samples]
-            The predict result of the testing samples.
+            The predicted result of the testing samples.
         """
 
         description = self.features_descriptions[wcself.bestn]
@@ -229,6 +236,22 @@ class BoostedCascade:
         return h
 
     def _strongPredict(self, scself, X_):
+        """Predict function for the strong classifier (AdaBoostClassifier).
+
+        Parameters
+        ----------
+        scself : instance of self.SCClass
+            The strong classifier (AdaBoostClassifier).
+        X_ : np.array of shape = [n_samples, n_features]
+            The inputs of the testing samples.
+
+        Returns
+        -------
+        yPred : np.array of shape = [n_samples]
+            The predicted results of the testing samples.
+        CI : np.array of shape = [n_samples]
+            The confidence of each predict result.
+        """
         hsum = 0
         for i in range(scself.nWC):
             hsum = hsum + scself.alpha[i] * self._weakPredict(scself.WCs[i], X_)
@@ -240,6 +263,18 @@ class BoostedCascade:
         return yPred, CI
 
     def predict(self, test_set_):
+        """Predict whether it's a face or not.
+
+        Parameters
+        ----------
+        test_set_ : array-like of shape = [n_samples, height, width]
+            The inputs of the testing samples.
+
+        Returns
+        -------
+        yPred : np.array of shape = [n_samples]
+            The predicted results of the testing samples.
+        """
         X = np.zeros((len(test_set_), self.DetectorH, self.DetectorW))
         for i in len(test_set_):
             X[i] = self.Haarlike._getIntegralImage(test_set_[i])
