@@ -3,7 +3,7 @@
 
 import numpy as np
 
-from .haarlikefeature import HaarlikeFeature
+from .haarlikefeature import HaarlikeFeature, HaarlikeType
 from .boostedcascade import BoostedCascade
 
 # from . import haarlikefeature
@@ -11,5 +11,6 @@ from .boostedcascade import BoostedCascade
 
 __all__ = [
     "HaarlikeFeature"
+    "HaarlikeType"
     "BoostedCascade"
 ]

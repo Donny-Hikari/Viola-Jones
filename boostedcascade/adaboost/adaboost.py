@@ -44,7 +44,7 @@ class AdaBoostClassifier:
         #   Sum of votes result of all evaluated
         #   weak classifiers.
 
-    def train(self, X_, y_):
+    def train(self, X_, y_, verbose=False):
         """Train the AdaBoost classifier with the training set (X, y).
 
         Parameters
@@ -74,12 +74,14 @@ class AdaBoostClassifier:
         W = np.ones((n_samples)) / n_samples
 
         for i in range(self.mxWC):
+            if verbose: print('Training %d-th weak classifier' % i)
             err = self.WCs[i].train(X, y, W)
             h = self.WCs[i].predict(X).flatten(1)
             self.alpha[i] = 0.5 * np.log((1 - err) / err)
             W = W * np.exp(-self.alpha[i]*y*h)
             W = W / W.sum()
             self.nWC = i+1
+            if verbose: print('%d-th weak classifier: err = %f' % (i, err))
             if self._evaluate(i, h, y) == 0:
                 print(self.nWC, "weak classifiers are enought to make error rate reach 0.0")
                 break

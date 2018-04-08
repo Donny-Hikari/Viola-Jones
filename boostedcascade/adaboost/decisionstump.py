@@ -103,15 +103,17 @@ class DecisionStumpClassifier:
         bestd = 1
         bestp = min_x
         minerr = W.sum()
-        for p in np.arange(min_x, max_x, len_x/steps):
-            for d in [-1, 1]:
-                gy = np.ones((y.size))
-                gy[X*d < p*d] = -1
-                err = np.sum((gy != y)*W)
-                if err < minerr:
-                    minerr = err
-                    bestd = d
-                    bestp = p
+
+        if len_x > 0.0:
+            for p in np.arange(min_x, max_x, len_x/steps):
+                for d in [-1, 1]:
+                    gy = np.ones((y.size))
+                    gy[X*d < p*d] = -1
+                    err = np.sum((gy != y)*W)
+                    if err < minerr:
+                        minerr = err
+                        bestd = d
+                        bestp = p
 
         return minerr, bestd, bestp
 

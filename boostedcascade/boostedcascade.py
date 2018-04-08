@@ -11,7 +11,7 @@ import copy
 
 from .adaboost import AdaBoostClassifier
 from .adaboost import DecisionStumpClassifier
-from . import HaarlikeFeature
+from . import HaarlikeFeature, HaarlikeType
 
 class BoostedCascade:
     """Boosted cascade proposed by Viola & Jones
@@ -56,30 +56,33 @@ class BoostedCascade:
         self.CIsteps = CIsteps
 
         # The window size of detector
-        self.detecWndW, self.detectWndH = (-1, -1)
+        self.detectWndW, self.detectWndH = (-1, -1)
 
-        self.P = self.N = -1
+        self.P = self.N = []
         self.features_cnt = -1
-        self.features_descriptions = -1
+        self.features_descriptions = []
 
         # self.SCs : list of self.SCClass
         #   The strong classifiers.
+        self.SCs = []
         # self.thresholds : list of float
         #   The thresholds of each strong classifier.
+        self.thresholds = []
         # self.SCn : list of int
         #   The number of features used.
+        self.SCn = []
 
     def savefeaturesdata(self, filename):
-        numpy.save(filename+'-P.bcf', self.P)
-        numpy.save(filename+'-N.bcf', self.N)
-        numpy.save(filename+'-features_cnt.bcf', self.features_cnt)
-        numpy.save(filename+'-features_descriptions.bcf', self.features_descriptions)
+        np.save(filename+'-variables', [self.detectWndH, self.detectWndW, self.features_cnt])
+        np.save(filename+'-P', self.P)
+        np.save(filename+'-N', self.N)
+        np.save(filename+'-features_descriptions', self.features_descriptions)
 
     def loadfeaturesdata(self, filename):
-        self.P = numpy.load(filename+'-P.bcf')
-        self.N = numpy.load(filename+'-N.bcf')
-        self.features_cnt = numpy.load(filename+'-features_cnt.bcf')
-        self.features_descriptions = numpy.load(filename+'-features_descriptions.bcf')
+        self.detectWndH, self.detectWndW, self.features_cnt = np.load(filename+'-variables.npy')
+        self.P = np.load(filename+'-P.npy')
+        self.N = np.load(filename+'-N.npy')
+        self.features_descriptions = np.load(filename+'-features_descriptions.npy')
 
     def prepare(self, P_, N_, shuffle=True, verbose=False):
         """Prepare the data for training.
@@ -93,11 +96,12 @@ class BoostedCascade:
         shuffle : bool
             Whether to shuffle the data or not.
         """
-        assert np.shape(P_) == np.shape(N_), "Window sizes mismatch."
-        self.detectWndH, self.detecWndW = np.shape(P_)
+        assert np.shape(P_)[1:3] == np.shape(N_)[1:3], "Window sizes mismatch."
+        _, self.detectWndH, self.detectWndW = np.shape(P_)
 
         features_cnt, descriptions = \
-            self.Haarlike.determineFeatures(self.detecWndW, self.detectWndH)
+            self.Haarlike.determineFeatures(self.detectWndW, self.detectWndH)
+        descriptions = descriptions[::-1]
 
         if shuffle:
             # If P_ is a list, this is faster than
@@ -109,23 +113,23 @@ class BoostedCascade:
         N = np.zeros((len(N_), features_cnt))
         for i in range(len(P_)):
             if verbose: print('Preparing positive data NO.%d.' % i)
-            P[i] = self.Haarlike.extractFeatures(P_[i])
+            P[i] = self.Haarlike.extractFeatures(P_[i])[::-1]
         for j in range(len(N_)):
             if verbose: print('Preparing negative data NO.%d.' % j)
-            N[j] = self.Haarlike.extractFeatures(N_[i])
+            N[j] = self.Haarlike.extractFeatures(N_[i])[::-1]
 
         self.P = P
         self.N = N
         self.features_cnt = features_cnt
         self.features_descriptions = descriptions
 
-    def train(self):
+    def train(self, verbose=False):
         """Train the boosted cascade model.
         """
-        assert self.detecWndW != -1 and self.detectWndH != -1 and \
-               self.P != -1 and self.N != -1 and \
+        assert self.detectWndW != -1 and self.detectWndH != -1 and \
+               len(self.P) != 0 and len(self.N) != 0 and \
                self.features_cnt != -1 and \
-               self.features_descriptions != -1, \
+               len(self.features_descriptions) != 0, \
                "Please call prepare first."
 
         P = self.P
@@ -136,11 +140,11 @@ class BoostedCascade:
         P = P[divlineP:len(P)]
 
         divlineN = int(len(N)*self.validset_rate)
-        validN = N[0:divlenN]
+        validN = N[0:divlineN]
         N = N[divlineN:len(N)]
 
-        validset_X = np.vstack(validP, validN)
-        validset_y = np.vstack(np.ones(len(validP)), np.zeros(len(validN)))
+        validset_X = np.concatenate(( validP, validN ))
+        validset_y = np.concatenate(( np.ones(len(validP)), np.zeros(len(validN)) ))
         validset_X, validset_y = skshuffle(validset_X, validset_y, random_state=1)
         
         self.SCs = []
@@ -150,37 +154,53 @@ class BoostedCascade:
 
         f0 = f1 = 1.0
         D0 = D1 = 1.0
+        n_step = int(self.features_cnt/1000)
+        if n_step == 0: n_step = 1
         i = 0
         while f1 > self.Ftarget:
             i += 1
             f0 = f1
             D0 = D1
-            n = 0
+            # n = 0
+            n = int(self.features_cnt/1000)
+
+            print('Training iteration %d, false positive rate = %f' % (i, f1))
             
             while f1 > self.f * f0:
-                n += 1
+                n += n_step
+                
+                print('Features count %d, detection rate = %f, false positive rate = %f'
+                    % (n, D1, f1))
         
-                training_X = np.vstack(P, N)
+                training_X = np.concatenate(( P, N ))
                 training_X = training_X[:, 0:n]
-                training_y = np.vstack(np.ones(len(P)), np.zeros(len(N)))
+                training_y = np.concatenate(( np.ones(len(P)), np.zeros(len(N)) ))
                 training_X, training_y = skshuffle(training_X, training_y, random_state=1)
         
                 classifier = copy.deepcopy(self.SCClass)
-                classifier.train(training_X, training_y)
+                classifier.train(training_X, training_y, verbose)
                 self.SCs.append(classifier)
                 self.thresholds.append(1.0)
                 self.SCn.append(n)
                 
                 ySync, f1, D1, _ = self._evaluate(validset_X, validset_y)
                 ind = len(self.thresholds)-1
-                while D1 > self.d * D0:
+                while D1 < self.d * D0:
+                    print('Adjusting threshold to %f, detection rate = %f, false positive rate = %f'
+                        % (self.thresholds[ind], D1, f1))
+
                     self.thresholds[ind] -= self.CIsteps # guess so
+                    if self.thresholds[ind] < 0.0: self.thresholds[ind] = 0.0
                     ySync, f1, D1, _ = self._evaluate(validset_X, validset_y)
 
                 self._updateEvaluate(ySync)
 
             if f1 > self.Ftarget:
-                _, _, _, N = self,_evaluate(self.N, np.zeros(len(self.N)))
+                _, _, _, fp = self,_evaluate(self.N, np.zeros(len(self.N)))
+                N = self.N[fp]
+        
+        print('%d cascaded classifiers, detection rate = %f, false positive rate = %f'
+            % (len(self.SCs), D1, f1))
 
     def _initEvaluate(self, validset_y):
         """Initialize before evaluating the model.
@@ -190,12 +210,13 @@ class BoostedCascade:
         validset_y : np.array of shape = [n_samples]
             The ground truth of the valid set.
         """
-        self._eval = {}
-        self._eval.PySelector = (y_ == 1)
-        self._eval.NySelector = (y_ == 0)
-        self._eval.cP = np.sum(y_[self._eval.PySelector])
-        self._eval.cN = np.sum(y_[self._eval.NySelector])
-        self._eval.ySync = np.ones(len(X_)) # All exist possible positive
+        class Eval: pass
+        self._eval = Eval()
+        self._eval.PySelector = (validset_y == 1)
+        self._eval.NySelector = (validset_y == 0)
+        self._eval.cP = len(validset_y[self._eval.PySelector])
+        self._eval.cN = len(validset_y[self._eval.NySelector])
+        self._eval.ySync = np.ones(len(validset_y)) # All exist possible positive
         pass
 
     def _evaluate(self, X_, y_):
@@ -220,26 +241,26 @@ class BoostedCascade:
             The false positives.
         """
         ind = len(self.thresholds)-1
-        ySync = self._eval.ySync
+        ySync = self._eval.ySync.copy()
 
         yiPred, CI = self.SCs[ind].predict(X_[ySync == 1][:, 0:self.SCn[ind]])
-        # Reject if confidence is less that thresholds
-        yiPred[yiPred == 1][CI[yiPred == 1] < self.thresholds[ind]] = 0
-        ySync[ySync == 1][yiPred == 0] = 0 # Exclude all rejected
+        # Reject those whose confidences are less that thresholds
+        yiPred[yiPred == 1] = (CI[yiPred == 1] >= self.thresholds[ind]).astype(int)
+        ySync[ySync == 1] = yiPred # Exclude all rejected
 
         fp = (ySync[self._eval.NySelector] == 1)
         dp = (ySync[self._eval.PySelector] == 1)
-        f = np.sum(fp) / self._eval.cN
-        d = np.sum(dp) / self._eval.cP
+        f = (np.sum(fp) / self._eval.cN) if self._eval.cN != 0.0 else 0.0
+        d = (np.sum(dp) / self._eval.cP) if self._eval.cP != 0.0 else 0.0
 
         return ySync, f, d, fp
 
-    def _updateEvaluate(self, ySync_):
+    def _updateEvaluate(self, ySync):
         """Update the parameter of the evaluating model.
 
         Parameters
         ----------
-        ySync_ : np.array of shape = [n_samples]
+        ySync : np.array of shape = [n_samples]
             The classifier result generated by function 'evaluate'.
         """
         self._eval.ySync = ySync # Update ySync
@@ -263,7 +284,7 @@ class BoostedCascade:
         description = self.features_descriptions[wcself.bestn]
 
         feature = np.zeros(len(X_))
-        for ind in range(X_):
+        for ind in range(len(X_)):
             feature[ind] = self.Haarlike._getFeatureIn(
                 X_[ind],        # integral image
                 description[0], # haartype
@@ -317,14 +338,58 @@ class BoostedCascade:
         yPred : np.array of shape = [n_samples]
             The predicted results of the testing samples.
         """
-        X = np.zeros((len(test_set_), self.detectWndH, self.detecWndW))
-        for i in len(test_set_):
+        X = np.zeros((len(test_set_), self.detectWndH+1, self.detectWndW+1))
+        for i in range(len(test_set_)):
             X[i] = self.Haarlike._getIntegralImage(test_set_[i])
 
         yPred = np.ones(len(X))
         for ind in range(len(self.thresholds)):
             yiPred, CI = self._strongPredict(self.SCs[ind], X[yPred == 1])
-            yiPred[yiPred == 1][CI[yiPred == 1] < self.thresholds[ind]] = 0
-            yPred[yPred == 1][yiPred == 0] = 0 # Exclude all rejected
+            yiPred[yiPred == 1] = (CI[yiPred == 1] >= self.thresholds[ind]).astype(int)
+            yPred[yPred == 1] = yiPred # Exclude all rejected
         
         return yPred
+
+    def preparePredictRaw(self, P_, N_, verbose=False):
+        P = np.zeros((len(P_), self.features_cnt))
+        N = np.zeros((len(N_), self.features_cnt))
+        for i in range(len(P_)):
+            if verbose: print('Preparing positive data NO.%d.' % i)
+            P[i] = self.Haarlike.extractFeatures(P_[i])[::-1]
+        for j in range(len(N_)):
+            if verbose: print('Preparing negative data NO.%d.' % j)
+            N[j] = self.Haarlike.extractFeatures(N_[i])[::-1]
+
+        self.P = P
+        self.N = N
+            
+    def predictRaw(self):
+        X = np.concatenate((self.P, self.N))
+        yPred = np.ones(len(X))
+        for ind in range(len(self.thresholds)):
+            yiPred, CI = self.SCs[ind].predict(X[yPred == 1][:, 0:self.SCn[ind]])
+            yiPred[yiPred == 1] = (CI[yiPred == 1] >= self.thresholds[ind]).astype(int)
+            yPred[yPred == 1] = yiPred # Exclude all rejected
+        
+        return yPred[0:len(self.P)], yPred[len(self.P):len(self.N)]
+
+    def saveModel(self, filename):
+        np.save(filename+'-variables', [
+            self.detectWndH, self.detectWndW, self.features_cnt
+        ])
+        np.save(filename+'-features_descriptions',
+            self.features_descriptions)
+        np.save(filename+'-thresholds', self.thresholds)
+        np.save(filename+'-SCs', self.SCs)
+        np.save(filename+'-SCn', self.SCn)
+
+    def loadModel(filename):
+        model = BoostedCascade(-1.0, -1.0, -1.0)
+        model.detectWndH, model.detectWndW, model.features_cnt = \
+            np.load(filename+'-variables.npy')
+        model.features_descriptions = \
+            np.load(filename+'-features_descriptions.npy')
+        model.thresholds = np.load(filename+'-thresholds.npy')
+        model.SCs = np.load(filename+'-SCs.npy')
+        model.SCn = np.load(filename+'-SCn.npy')
+        return model

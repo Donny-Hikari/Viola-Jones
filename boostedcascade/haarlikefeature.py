@@ -59,15 +59,17 @@ class HaarlikeFeature:
                     features_cnt += int((width-x)/wndx)*int((height-y)/wndy)
                     
         descriptions = np.zeros((features_cnt, 5))
+        ind = 0
         for haartype in range(HaarlikeType.TYPES_COUNT.value):
             wndx, wndy = __class__.HaarWindow[haartype]
             for x in range(0, width-wndx+1):
                 for y in range(0, height-wndy+1):
                     for w in range(wndx, width-x+1, wndx):
                         for h in range(wndy, height-y+1, wndy):
-                            descriptions = [haartype, x, y, w, h]
+                            descriptions[ind] = [haartype, x, y, w, h]
+                            ind += 1
         
-        # print(features_cnt)
+        # print(features_cnt, descriptions.shape)
         self.features_cnt = features_cnt
         return self.features_cnt, descriptions
 
@@ -175,7 +177,7 @@ class HaarlikeFeature:
         ----------
         itgImage : np.array
             The integral image.
-        feature_type : HaarlikeType
+        feature_type : {HaarlikeType, number of HaarlikeType id}
             Tpye of the haar-like feature to extract.
         x : int
             The starting column.
@@ -191,6 +193,9 @@ class HaarlikeFeature:
         diff : int
             The difference of white and black area, which represent the feature of the rectangle.
         """
+        if not isinstance(feature_type, HaarlikeType):
+            feature_type = HaarlikeType(feature_type)
+            
         white = 0
         black = 0
         if feature_type == HaarlikeType.TWO_HORIZONTAL:
@@ -208,4 +213,5 @@ class HaarlikeFeature:
         elif feature_type == HaarlikeType.FOUR_DIAGONAL:
             white = self._getSumIn(itgImage, x, y, w/2, h/2) + self._getSumIn(itgImage, x + w/2, y + h/2, w/2, h/2)
             black = self._getSumIn(itgImage, x + w/2, y, w/2, h/2) + self._getSumIn(itgImage, x, y + h/2, w/2, h/2)
+        
         return white - black
