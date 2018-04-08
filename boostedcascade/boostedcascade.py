@@ -14,13 +14,25 @@ from .adaboost import DecisionStumpClassifier
 from . import HaarlikeFeature
 
 class BoostedCascade:
+    """Boosted cascade proposed by Viola & Jones
 
-    DetectorW = 24
-    DetectorH = 24
+    Parameters
+    ----------
+    Ftarget : float
+        The target maximum false positvie rate.
+    f : float
+        The maximum acceptable false positive rate per layer.
+    d : float
+        The minimum acceptable detection rate per layer.
+    adaboostClassifier : AdaBoostClassifier
+        A AdaBoost classifier instance.
+    validset_rate : float, optional
+        The ratio of valid set in the whole training set.
+    CIsteps : float, optional.
+        The steps of decreasing confidence threshold in each cascaded classifier.
+    """
 
-    CIsteps = 0.1
-
-    Haarlike = HaarlikeFeature
+    Haarlike = HaarlikeFeature()
 
     def __init__(self,
                  Ftarget, f, d,
@@ -28,7 +40,8 @@ class BoostedCascade:
                      200,
                      weak_classifier_ = DecisionStumpClassifier()
                  ),
-                 validset_rate = 0.3):
+                 validset_rate = 0.3,
+                 CIsteps = 0.1):
         # Target false positive rate.
         self.Ftarget = Ftarget
         # The maximum acceptable false positive rate per layer.
@@ -39,6 +52,11 @@ class BoostedCascade:
         self.SCClass = adaboostClassifier
         # The ratio of valid set in the whole training set.
         self.validset_rate = validset_rate
+        # The steps of decreasing confidence threshold in each cascaded classifier.        
+        self.CIsteps = CIsteps
+
+        # The window size of detector
+        self.detecWndW, self.detectWndH = (-1, -1)
 
         self.P = self.N = -1
         self.features_cnt = -1
@@ -51,20 +69,35 @@ class BoostedCascade:
         # self.SCn : list of int
         #   The number of features used.
 
-    def prepare(self, P_, N_, shuffle=True):
+    def savefeaturesdata(self, filename):
+        numpy.save(filename+'-P.bcf', self.P)
+        numpy.save(filename+'-N.bcf', self.N)
+        numpy.save(filename+'-features_cnt.bcf', self.features_cnt)
+        numpy.save(filename+'-features_descriptions.bcf', self.features_descriptions)
+
+    def loadfeaturesdata(self, filename):
+        self.P = numpy.load(filename+'-P.bcf')
+        self.N = numpy.load(filename+'-N.bcf')
+        self.features_cnt = numpy.load(filename+'-features_cnt.bcf')
+        self.features_descriptions = numpy.load(filename+'-features_descriptions.bcf')
+
+    def prepare(self, P_, N_, shuffle=True, verbose=False):
         """Prepare the data for training.
 
         Parameters
         ----------
-        P_ : array-like of shape = [n_positive_samples, n_features]
+        P_ : array-like of shape = [n_positive_samples, height, width]
             The positive samples.
-        N_ : array-like of shape = [n_negetive_samples, n_features]
+        N_ : array-like of shape = [n_negetive_samples, height, width]
             The negetive samples.
         shuffle : bool
             Whether to shuffle the data or not.
         """
+        assert np.shape(P_) == np.shape(N_), "Window sizes mismatch."
+        self.detectWndH, self.detecWndW = np.shape(P_)
+
         features_cnt, descriptions = \
-            self.Haarlike.determineFeatures(self.DetectorW, self.DetectorH)
+            self.Haarlike.determineFeatures(self.detecWndW, self.detectWndH)
 
         if shuffle:
             # If P_ is a list, this is faster than
@@ -74,9 +107,11 @@ class BoostedCascade:
 
         P = np.zeros((len(P_), features_cnt))
         N = np.zeros((len(N_), features_cnt))
-        for i in len(P_):
+        for i in range(len(P_)):
+            if verbose: print('Preparing positive data NO.%d.' % i)
             P[i] = self.Haarlike.extractFeatures(P_[i])
-        for j in len(N_):
+        for j in range(len(N_)):
+            if verbose: print('Preparing negative data NO.%d.' % j)
             N[j] = self.Haarlike.extractFeatures(N_[i])
 
         self.P = P
@@ -87,7 +122,8 @@ class BoostedCascade:
     def train(self):
         """Train the boosted cascade model.
         """
-        assert self.P != -1 and self.N != -1 and \
+        assert self.detecWndW != -1 and self.detectWndH != -1 and \
+               self.P != -1 and self.N != -1 and \
                self.features_cnt != -1 and \
                self.features_descriptions != -1, \
                "Please call prepare first."
@@ -281,7 +317,7 @@ class BoostedCascade:
         yPred : np.array of shape = [n_samples]
             The predicted results of the testing samples.
         """
-        X = np.zeros((len(test_set_), self.DetectorH, self.DetectorW))
+        X = np.zeros((len(test_set_), self.detectWndH, self.detecWndW))
         for i in len(test_set_):
             X[i] = self.Haarlike._getIntegralImage(test_set_[i])
 

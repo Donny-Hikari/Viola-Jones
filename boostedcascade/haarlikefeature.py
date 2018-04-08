@@ -92,7 +92,7 @@ class HaarlikeFeature:
         if self.features_cnt == -1:
             self.determineFeatures(width, height)
         
-        features = np.zeros((int(self.features_cnt), 6))
+        features = np.zeros((int(self.features_cnt)))
 
         itgImage = self._getIntegralImage(ognImage)
 
