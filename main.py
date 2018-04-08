@@ -1,7 +1,6 @@
 
 import scipy.misc
-from HaarCascade import HaarlikeFeature
-from HaarCascade.adaboost import AdaBoostClassifier
+from boostedcascade import BoostedCascade, HaarlikeFeature
 
 im = scipy.misc.imread('data/1avril-lavigne.jpg', flatten=False, mode='F')
 
