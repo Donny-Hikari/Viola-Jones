@@ -25,16 +25,18 @@ class AdaBoostClassifier:
                     param test_set : accepts test samples
                     return         : classify result
     """
-    def __init__(self, n_classes_,
+    def __init__(self,
                  weak_classifier_ = DecisionStumpClassifier()):
         # Maximal weak classifiers
-        self.mxWC = n_classes_
+        # self.mxWC = n_classes_
+        self.mxWC = 0
         # Class of weak classifier
         self.WCClass = weak_classifier_
         # self.WCs : [self.WCClass list]
         #   List of Weak classifiers.
         # self.nWC : [int]
         #   Number of weak classifiers used. (<= mxWC)
+        self.nWC = 0
         # self.alpha : [float list]
         #   Alpha contains weights of each weak classifier,
         #   ie. votes they have.
@@ -44,7 +46,7 @@ class AdaBoostClassifier:
         #   Sum of votes result of all evaluated
         #   weak classifiers.
 
-    def train(self, X_, y_, verbose=False):
+    def train(self, X_, y_, n_classes_, is_continue=False, verbose=False):
         """Train the AdaBoost classifier with the training set (X, y).
 
         Parameters
@@ -63,28 +65,41 @@ class AdaBoostClassifier:
 
         assert n_samples == y.size
         
-        # Initialize weak classifiers
-        self.WCs = [copy.deepcopy(self.WCClass) for i in range(self.mxWC)]
-        self.nWC = 0
-        self.alpha = np.zeros((self.mxWC))
-        self.features = n_features
-        self.sum_eval = 0
+        if not is_continue or self.nWC == 0:
+            # Initialize weak classifiers
+            self.mxWC = n_classes_
+            self.WCs = [copy.deepcopy(self.WCClass) for a in range(self.mxWC)]
+            self.nWC = 0
+            self.alpha = np.zeros((self.mxWC))
+            self.features = n_features
+            self.sum_eval = 0
 
-        # Initialize weights of inputs samples
-        W = np.ones((n_samples)) / n_samples
+            # Initialize weights of inputs samples
+            W = np.ones((n_samples)) / n_samples
+        else:
+            self.mxWC = self.nWC + n_classes_
+            self.WCs = np.concatenate((self.WCs[0:self.nWC], [copy.deepcopy(self.WCClass) for a in range(n_classes_)]))
+            self.alpha = np.concatenate((self.alpha[0:self.nWC], np.zeros((n_classes_))))
+            W = self.W
 
-        for i in range(self.mxWC):
-            if verbose: print('Training %d-th weak classifier' % i)
-            err = self.WCs[i].train(X, y, W)
-            h = self.WCs[i].predict(X).flatten(1)
-            self.alpha[i] = 0.5 * np.log((1 - err) / err)
-            W = W * np.exp(-self.alpha[i]*y*h)
+        for a in range(self.nWC, self.mxWC):
+            if verbose: print('Training %d-th weak classifier' % a)
+            err = self.WCs[a].train(X, y, W)
+            
+            if err == 0: err = 1e-6
+            elif err == 1: err = 1 - 1e-6
+
+            h = self.WCs[a].predict(X).flatten(1)
+            self.alpha[a] = 0.5 * np.log((1 - err) / err)
+            W = W * np.exp(-self.alpha[a]*y*h)
             W = W / W.sum()
-            self.nWC = i+1
-            if verbose: print('%d-th weak classifier: err = %f' % (i, err))
-            if self._evaluate(i, h, y) == 0:
+            self.nWC = a+1
+            if verbose: print('%d-th weak classifier: err = %f' % (a, err))
+            if self._evaluate(a, h, y) == 0:
                 print(self.nWC, "weak classifiers are enought to make error rate reach 0.0")
                 break
+
+        self.W = W
 
     def _evaluate(self, t, h, y):
         """Evaluate current model.
@@ -125,7 +140,7 @@ class AdaBoostClassifier:
         """
 
         hsum = self.weightedSum(test_set_)
-        CI = abs(hsum) / np.sum(self.alpha)
+        CI = abs(hsum) / np.sum(abs(self.alpha))
 
         yPred = np.sign(hsum)
         yPred[yPred == -1] = 0

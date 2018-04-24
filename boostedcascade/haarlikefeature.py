@@ -30,6 +30,7 @@ class HaarlikeFeature:
 
     def __init__(self):
         self.features_cnt = -1
+        self.wnd_size = (0, 0)
 
     def determineFeatures(self, width, height):
         """Determine the features count while the window is (width, height),
@@ -57,20 +58,22 @@ class HaarlikeFeature:
             for x in range(0, width-wndx+1):
                 for y in range(0, height-wndy+1):
                     features_cnt += int((width-x)/wndx)*int((height-y)/wndy)
-                    
+        
         descriptions = np.zeros((features_cnt, 5))
         ind = 0
         for haartype in range(HaarlikeType.TYPES_COUNT.value):
             wndx, wndy = __class__.HaarWindow[haartype]
-            for x in range(0, width-wndx+1):
-                for y in range(0, height-wndy+1):
-                    for w in range(wndx, width-x+1, wndx):
-                        for h in range(wndy, height-y+1, wndy):
+            for w in range(wndx, width+1, wndx):
+                for h in range(wndy, height+1, wndy):
+                    for x in range(0, width-w+1):
+                        for y in range(0, height-h+1):
                             descriptions[ind] = [haartype, x, y, w, h]
                             ind += 1
         
         # print(features_cnt, descriptions.shape)
+        self.wnd_size = (height, width)
         self.features_cnt = features_cnt
+        self.descriptions = descriptions
         return self.features_cnt, descriptions
 
     def extractFeatures(self, ognImage_):
@@ -93,22 +96,24 @@ class HaarlikeFeature:
         # Call determineFeatures first.
         if self.features_cnt == -1:
             self.determineFeatures(width, height)
+
+        assert (height, width) == self.wnd_size
         
         features = np.zeros((int(self.features_cnt)))
 
         itgImage = self._getIntegralImage(ognImage)
 
         cnt = 0
-        for haartype in range(HaarlikeType.TYPES_COUNT.value):
-            wndx, wndy = __class__.HaarWindow[haartype]
-            # print('Iterating on haar-like type',haartype,':',HaarlikeType(haartype))
-            for x in range(0, width-wndx+1):
-                for y in range(0, height-wndy+1):
-                    for w in range(wndx, width-x+1, wndx):
-                        for h in range(wndy, height-y+1, wndy):
-                            features[cnt] = self._getFeatureIn(itgImage,
-                                HaarlikeType(haartype), x, y, w, h)
-                            cnt += 1
+        for description in self.descriptions:
+            features[cnt] = self._getFeatureIn(
+                itgImage,
+                HaarlikeType(description[0]), 
+                description[1],
+                description[2],
+                description[3],
+                description[4]
+            )
+            cnt += 1
         
         return features
         

@@ -3,17 +3,22 @@ from utils import loadImages
 from boostedcascade import BoostedCascade, HaarlikeFeature
 
 GenerateFeatures = False
+Database = 'large'
+ModelFile = 'data/' + Database + '/model-100/' + Database
 
 if __name__ == '__main__':
-    boostedCascade = BoostedCascade(0.1, 0.3, 0.6)
+    # boostedCascade = BoostedCascade(0.03, 0.40, 0.99)
+    # boostedCascade = BoostedCascade(0.04, 0.20, 0.985)
+    boostedCascade = BoostedCascade(0.07, 0.60, 0.97)
 
     if GenerateFeatures:
-        faceImages = loadImages('data/micro/train/faces')
-        nonfaceImages = loadImages('data/micro/train/non-faces')
+        faceImages = loadImages('data/' + Database + '/train/faces')
+        nonfaceImages = loadImages('data/' + Database + '/train/non-faces')
 
-        boostedCascade.prepare(faceImages, nonfaceImages, verbose=True)
-        boostedCascade.savefeaturesdata('data/micro/train/features/micro')
+        boostedCascade.prepare(faceImages, nonfaceImages, shuffle=True, verbose=True)
+        boostedCascade.savefeaturesdata('data/' + Database + '/train/features/' + Database)
     else:
-        boostedCascade.loadfeaturesdata('data/micro/train/features/micro')
-        boostedCascade.train(verbose=True)
-        boostedCascade.saveModel('data/micro/model/micro')
+        boostedCascade = BoostedCascade.loadModel(ModelFile)
+        boostedCascade.loadfeaturesdata('data/' + Database + '/train/features/' + Database)
+        boostedCascade.train(is_continue=True, autosnap_filename=ModelFile, verbose=True)
+        boostedCascade.saveModel(ModelFile)
