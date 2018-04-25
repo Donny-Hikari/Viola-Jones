@@ -84,7 +84,7 @@ class AdaBoostClassifier:
 
         for a in range(self.nWC, self.mxWC):
             if verbose: print('Training %d-th weak classifier' % a)
-            err = self.WCs[a].train(X, y, W)
+            err = self.WCs[a].train(X, y, W, verbose)
             
             if err == 0: err = 1e-6
             elif err == 1: err = 1 - 1e-6

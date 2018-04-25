@@ -15,9 +15,7 @@ class DecisionStumpClassifier:
         The steps to train on each feature.
     """
 
-    Max_Parallel_Thread = 16
-
-    def __init__(self, steps_=400):
+    def __init__(self, steps_=400, max_parallel_thread_=8):
         # self.features : int
         #   Number of features.
         # self.bestn : int
@@ -29,9 +27,9 @@ class DecisionStumpClassifier:
         # self.steps : int
         #   Count of training iterations.
         self.steps = steps_
-        pass
+        self.max_parallel_thread = max_parallel_thread_
 
-    def train(self, X_, y_, W_):
+    def train(self, X_, y_, W_, verbose=False):
         """Train the decision stump with the training set {X, y}
 
         Parameters
@@ -58,13 +56,13 @@ class DecisionStumpClassifier:
         n_samples, n_features = X.shape
         assert n_samples == y.size
 
-        threads = [None] * self.Max_Parallel_Thread
-        schedules = [0.0] * self.Max_Parallel_Thread
-        results = [None] * self.Max_Parallel_Thread
+        threads = [None] * self.max_parallel_thread
+        schedules = [0.0] * self.max_parallel_thread
+        results = [None] * self.max_parallel_thread
 
-        blocksize = math.ceil(n_features / self.Max_Parallel_Thread)
+        blocksize = math.ceil(n_features / self.max_parallel_thread)
         if blocksize <= 0: blocksize = 1
-        for tid in range(self.Max_Parallel_Thread):
+        for tid in range(self.max_parallel_thread):
             blockbegin = blocksize * tid
             if blockbegin >= n_features: break; # Has got enough threads
             blockend = blocksize * (tid+1)
@@ -78,20 +76,21 @@ class DecisionStumpClassifier:
         bestp = 0
         minerr = W.sum()
         
-        while True:
-            alive_threads = [None] * self.Max_Parallel_Thread
-            for tid in range(self.Max_Parallel_Thread):
-                alive_threads[tid] = threads[tid].isAlive()
-            if sum(alive_threads) == 0:
-                break;
+        if verbose:
+            while True:
+                alive_threads = [None] * self.max_parallel_thread
+                for tid in range(self.max_parallel_thread):
+                    alive_threads[tid] = threads[tid].isAlive()
+                if sum(alive_threads) == 0:
+                    break;
 
-            for tid in range(self.Max_Parallel_Thread):
-                print('%.1f%%\t' % (schedules[tid]*100), end='')
-            print('\r', end='', flush=True)
+                for tid in range(self.max_parallel_thread):
+                    print('% 7.1f%%' % (schedules[tid]*100), end='')
+                print('\r', end='', flush=True)
 
-            time.sleep(0.2)
+                time.sleep(0.2)
 
-        for tid in range(self.Max_Parallel_Thread):
+        for tid in range(self.max_parallel_thread):
             threads[tid].join()
             if results[tid].minerr < minerr:
                 minerr = results[tid].minerr
