@@ -4,7 +4,7 @@ from boostedcascade import BoostedCascade, HaarlikeFeature
 
 GenerateFeatures = False
 Database = 'large'
-ModelFile = 'data/' + Database + '/model-100/' + Database
+ModelFile = 'data/' + Database + '/model-100-x3/' + Database
 
 if __name__ == '__main__':
     # boostedCascade = BoostedCascade(0.03, 0.40, 0.99)

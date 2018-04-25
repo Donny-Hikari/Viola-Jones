@@ -209,6 +209,9 @@ class BoostedCascade:
 
         print('Begin training, with n_classes += %d, n_step = %d, Ftarget = %f, f = %f, d = %f'
             % (1, n_step, self.Ftarget, self.f, self.d))
+
+        if len(P) > len(N)*3:
+            P = P[:len(N)*3]
         
         itr = 0
         while f1 > self.Ftarget:
@@ -220,9 +223,6 @@ class BoostedCascade:
             # n = self.features_cnt
 
             print('Training iteration %d, false positive rate = %f' % (itr, f1))
-
-            if len(P) > len(N) * 1.3:
-                P = P[:len(N)]
 
             training_X = np.concatenate(( P, N ))
             training_y = np.concatenate(( np.ones(len(P)), np.zeros(len(N)) ))

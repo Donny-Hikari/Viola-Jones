@@ -1,6 +1,9 @@
 
 # Author: Donny
 
+import math
+import time
+import threading
 import numpy as np
 
 class DecisionStumpClassifier:
@@ -11,6 +14,9 @@ class DecisionStumpClassifier:
     steps_ : int, optional
         The steps to train on each feature.
     """
+
+    Max_Parallel_Thread = 16
+
     def __init__(self, steps_=400):
         # self.features : int
         #   Number of features.
@@ -52,11 +58,64 @@ class DecisionStumpClassifier:
         n_samples, n_features = X.shape
         assert n_samples == y.size
 
+        threads = [None] * self.Max_Parallel_Thread
+        schedules = [0.0] * self.Max_Parallel_Thread
+        results = [None] * self.Max_Parallel_Thread
+
+        blocksize = math.ceil(n_features / self.Max_Parallel_Thread)
+        if blocksize <= 0: blocksize = 1
+        for tid in range(self.Max_Parallel_Thread):
+            blockbegin = blocksize * tid
+            if blockbegin >= n_features: break; # Has got enough threads
+            blockend = blocksize * (tid+1)
+            if blockend > n_features: blockend = n_features
+            threads[tid] = threading.Thread(target=__class__._parallel_optimize,
+                args=(self, tid, (blockbegin, blockend), results, schedules, X, y, W, steps))
+            threads[tid].start()
+
         bestn = 0
         bestd = 1
         bestp = 0
         minerr = W.sum()
-        for n in range(n_features):
+        
+        while True:
+            alive_threads = [None] * self.Max_Parallel_Thread
+            for tid in range(self.Max_Parallel_Thread):
+                alive_threads[tid] = threads[tid].isAlive()
+            if sum(alive_threads) == 0:
+                break;
+
+            for tid in range(self.Max_Parallel_Thread):
+                print('%.1f%%\t' % (schedules[tid]*100), end='')
+            print('\r', end='', flush=True)
+
+            time.sleep(0.2)
+
+        for tid in range(self.Max_Parallel_Thread):
+            threads[tid].join()
+            if results[tid].minerr < minerr:
+                minerr = results[tid].minerr
+                bestn = results[tid].bestn
+                bestd = results[tid].bestd
+                bestp = results[tid].bestp
+
+        self.features = n_features
+        self.bestn = bestn
+        self.bestd = bestd
+        self.bestp = bestp
+
+        return minerr
+
+    def _parallel_optimize(self, tid, range_, result_output, schedules, X, y, W, steps):
+        assert type(range_) == tuple
+
+        bestn = 0
+        bestd = 1
+        bestp = 0
+        minerr = W.sum()
+        
+        for n in range(range_[0], range_[1]):
+            schedules[tid] = (n - range_[0]) / (range_[1] - range_[0])
             err, d, p = self._optimize(X[:, n], y, W, steps)
             if err < minerr:
                 minerr = err
@@ -64,12 +123,12 @@ class DecisionStumpClassifier:
                 bestd = d
                 bestp = p
         
-        self.features = n_features
-        self.bestn = bestn
-        self.bestd = bestd
-        self.bestp = bestp
-
-        return minerr
+        class Result: pass
+        result_output[tid] = Result()
+        result_output[tid].bestn = bestn
+        result_output[tid].bestd = bestd
+        result_output[tid].bestp = bestp
+        result_output[tid].minerr = minerr
 
     def _optimize(self, X, y, W, steps):
         """Get optimal direction and position to divided X.
