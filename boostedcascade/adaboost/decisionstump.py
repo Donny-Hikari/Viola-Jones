@@ -3,7 +3,8 @@
 
 import math
 import time
-import threading
+import sys
+import multiprocessing as mp
 import numpy as np
 
 class DecisionStumpClassifier:
@@ -15,7 +16,7 @@ class DecisionStumpClassifier:
         The steps to train on each feature.
     """
 
-    def __init__(self, steps_=400, max_parallel_thread_=8):
+    def __init__(self, steps_=400, max_parallel_processes_=8):
         # self.features : int
         #   Number of features.
         # self.bestn : int
@@ -27,7 +28,7 @@ class DecisionStumpClassifier:
         # self.steps : int
         #   Count of training iterations.
         self.steps = steps_
-        self.max_parallel_thread = max_parallel_thread_
+        self.max_parallel_processes = max_parallel_processes_
 
     def train(self, X_, y_, W_, verbose=False):
         """Train the decision stump with the training set {X, y}
@@ -48,55 +49,59 @@ class DecisionStumpClassifier:
             The sum of weighted errors.
         """
 
-        X = np.array(X_)
-        y = np.array(y_)
-        W = np.array(W_)
+        X = X_ if type(X_) == np.ndarray else np.array(X_)
+        y = y_ if type(y_) == np.ndarray else np.array(y_)
+        W = W_ if type(W_) == np.ndarray else np.array(W_)
         steps = self.steps
 
         n_samples, n_features = X.shape
         assert n_samples == y.size
 
-        threads = [None] * self.max_parallel_thread
-        schedules = [0.0] * self.max_parallel_thread
-        results = [None] * self.max_parallel_thread
+        processes = [None] * self.max_parallel_processes
+        schedules = [mp.Value('f', 0.0)] * self.max_parallel_processes
+        results = [mp.Queue()] * self.max_parallel_processes
 
-        blocksize = math.ceil(n_features / self.max_parallel_thread)
+        blocksize = math.ceil(n_features / self.max_parallel_processes)
         if blocksize <= 0: blocksize = 1
-        for tid in range(self.max_parallel_thread):
+        for tid in range(self.max_parallel_processes):
             blockbegin = blocksize * tid
-            if blockbegin >= n_features: break; # Has got enough threads
+            if blockbegin >= n_features: break; # Has got enough processes
             blockend = blocksize * (tid+1)
             if blockend > n_features: blockend = n_features
-            threads[tid] = threading.Thread(target=__class__._parallel_optimize,
-                args=(self, tid, (blockbegin, blockend), results, schedules, X, y, W, steps))
-            threads[tid].start()
+            processes[tid] = mp.Process(target=__class__._parallel_optimize,
+                args=(self, tid, (blockbegin, blockend), results[tid], schedules[tid], X, y, W, steps))
+            processes[tid].start()
+        
+        if verbose:
+            while True:
+                alive_processes = [None] * self.max_parallel_processes
+                for tid in range(self.max_parallel_processes):
+                    alive_processes[tid] = processes[tid].is_alive()
+                if sum(alive_processes) == 0:
+                    break;
+
+                for tid in range(self.max_parallel_processes):
+                    schedule = schedules[tid].value
+                    print('% 7.1f%%' % (schedule*100), end='')
+                print('\r', end='', flush=True)
+
+                time.sleep(0.2)
+
+            sys.stdout.write("\033[K") # Clear line
 
         bestn = 0
         bestd = 1
         bestp = 0
         minerr = W.sum()
-        
-        if verbose:
-            while True:
-                alive_threads = [None] * self.max_parallel_thread
-                for tid in range(self.max_parallel_thread):
-                    alive_threads[tid] = threads[tid].isAlive()
-                if sum(alive_threads) == 0:
-                    break;
 
-                for tid in range(self.max_parallel_thread):
-                    print('% 7.1f%%' % (schedules[tid]*100), end='')
-                print('\r', end='', flush=True)
-
-                time.sleep(0.2)
-
-        for tid in range(self.max_parallel_thread):
-            threads[tid].join()
-            if results[tid].minerr < minerr:
-                minerr = results[tid].minerr
-                bestn = results[tid].bestn
-                bestd = results[tid].bestd
-                bestp = results[tid].bestp
+        for tid in range(self.max_parallel_processes):
+            processes[tid].join()
+            result = results[tid].get()
+            if result['minerr'] < minerr:
+                minerr = result['minerr']
+                bestn = result['bestn']
+                bestd = result['bestd']
+                bestp = result['bestp']
 
         self.features = n_features
         self.bestn = bestn
@@ -105,7 +110,7 @@ class DecisionStumpClassifier:
 
         return minerr
 
-    def _parallel_optimize(self, tid, range_, result_output, schedules, X, y, W, steps):
+    def _parallel_optimize(self, tid, range_, result_output, schedule, X, y, W, steps):
         assert type(range_) == tuple
 
         bestn = 0
@@ -114,7 +119,8 @@ class DecisionStumpClassifier:
         minerr = W.sum()
         
         for n in range(range_[0], range_[1]):
-            schedules[tid] = (n - range_[0]) / (range_[1] - range_[0])
+            # setting and getting a float value is thread-safe
+            schedule.value = (n - range_[0]) / (range_[1] - range_[0])
             err, d, p = self._optimize(X[:, n], y, W, steps)
             if err < minerr:
                 minerr = err
@@ -122,12 +128,12 @@ class DecisionStumpClassifier:
                 bestd = d
                 bestp = p
         
-        class Result: pass
-        result_output[tid] = Result()
-        result_output[tid].bestn = bestn
-        result_output[tid].bestd = bestd
-        result_output[tid].bestp = bestp
-        result_output[tid].minerr = minerr
+        result = dict()
+        result['bestn'] = bestn
+        result['bestd'] = bestd
+        result['bestp'] = bestp
+        result['minerr'] = minerr
+        result_output.put(result)
 
     def _optimize(self, X, y, W, steps):
         """Get optimal direction and position to divided X.
@@ -189,7 +195,7 @@ class DecisionStumpClassifier:
             The predict result of the testing samples.
         """
 
-        test_set = np.array(test_set_)
+        test_set = test_set_ if type(test_set_) == np.ndarray else np.array(test_set_)
         n_samples, n_features = test_set.shape
 
         assert n_features == self.features

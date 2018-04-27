@@ -58,7 +58,7 @@ class AdaBoostClassifier:
             Currently only supports class 0 and 1.
         """
 
-        X = np.array(X_)
+        X = X_ if type(X_) == np.ndarray else np.array(X_)
         y = np.array(y_).flatten(1)
         y[y == 0] = -1
         n_samples, n_features = X.shape
@@ -161,7 +161,7 @@ class AdaBoostClassifier:
             The predict result of the testing samples.
         """
 
-        test_set = np.array(test_set_)
+        test_set = test_set_ if type(test_set_) == np.ndarray else np.array(test_set_)
 
         assert test_set.shape[1] == self.features
 

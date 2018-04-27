@@ -18,7 +18,10 @@ if __name__ == '__main__':
         boostedCascade.prepare(faceImages, nonfaceImages, shuffle=True, verbose=True)
         boostedCascade.savefeaturesdata('data/' + Database + '/train/features/' + Database)
     else:
+        print('Loading model...')
         boostedCascade = BoostedCascade.loadModel(ModelFile)
+        print('Loading data...')
         boostedCascade.loadfeaturesdata('data/' + Database + '/train/features/' + Database)
+        print('Trainning...')
         boostedCascade.train(is_continue=True, autosnap_filename=ModelFile, verbose=True)
         boostedCascade.saveModel(ModelFile)

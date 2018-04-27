@@ -5,9 +5,9 @@
 # Author : Donny
 # 
 
+import copy
 import numpy as np
 from sklearn.utils import shuffle as skshuffle
-import copy
 
 from .adaboost import AdaBoostClassifier
 from .adaboost import DecisionStumpClassifier
@@ -174,16 +174,16 @@ class BoostedCascade:
         N = self.N
 
         divlineP = int(len(P)*self.validset_rate)
-        validP = P[0:divlineP]
-        P = P[divlineP:len(P)]
-
         divlineN = int(len(N)*self.validset_rate)
-        validN = N[0:divlineN]
+
+        validset_X = np.concatenate(( P[0:divlineP], N[0:divlineN] ))
+        validset_y = np.concatenate(( np.ones(len(P[0:divlineP])), np.zeros(len(N[0:divlineN])) ))
+        # validset_X, validset_y = skshuffle(validset_X, validset_y, random_state=1)
+
+        P = P[divlineP:len(P)]
         N = N[divlineN:len(N)]
 
-        validset_X = np.concatenate(( validP, validN ))
-        validset_y = np.concatenate(( np.ones(len(validP)), np.zeros(len(validN)) ))
-        # validset_X, validset_y = skshuffle(validset_X, validset_y, random_state=1)
+        self.P = self.N = np.array([])
         
         self._initEvaluate(validset_X, validset_y)
 
@@ -209,9 +209,6 @@ class BoostedCascade:
 
         print('Begin training, with n_classes += %d, n_step = %d, Ftarget = %f, f = %f, d = %f'
             % (1, n_step, self.Ftarget, self.f, self.d))
-
-        if len(P) > len(N)*3:
-            P = P[:len(N)*3]
         
         itr = 0
         while f1 > self.Ftarget:
@@ -239,7 +236,7 @@ class BoostedCascade:
                 # if n > self.features_cnt: n = self.features_cnt
                 ind = len(self.SCs) - 1
                 
-                print('Itr-%d: Training %d-th AdaBoostClassifier, features count %d, detection rate = %f, false positive rate = %f'
+                print('Itr-%d: Training %d-th AdaBoostClassifier, features count + %d, detection rate = %f, false positive rate = %f'
                     % (itr, ind, n, D1, f1))
                 if verbose:
                     print('Aim detection rate : >=%f; Aim false positive rate : <=%f'
