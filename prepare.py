@@ -88,8 +88,8 @@ def generateFace(srcpath, destpath, listpath, verbose=False):
                         
                         # May get some noise around, but it's fine.
                         # There is noise when detecting.
-                        h = int(math.cos(radian)*major_radius*2 + pad)
-                        w = int(math.cos(radian)*minor_radius*2 + pad)
+                        h = int(math.cos(radian)*major_radius*2)
+                        w = int(math.cos(radian)*minor_radius*2)
                         if h < w: h = w
                         else: w = h
                         y = int(cty - h/2 + imgpad)
