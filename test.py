@@ -1,20 +1,24 @@
 
 import numpy as np
-from utils import loadImages
+from utils import loadImages, saveNegativeResult
 from boostedcascade import BoostedCascade, HaarlikeFeature, HaarlikeType
 
 RawPredict = False
 GenerateFeatures = False
-Database = 'middle'
-ModelFile ='data/' + Database + '/model-60/' + Database
+Database = 'large'
+ModelFile ='models/model-100-x3-l2/' + 'large'
+FPOutput = 'data/fp-noface'
+TNOutput = 'data/tn-noface'
 
 if __name__ == '__main__':
     boostedCascade = BoostedCascade.loadModel(ModelFile)
 
     # faceImages = loadImages('data/' + Database + '/test/faces')
     # nonfaceImages = loadImages('data/' + Database + '/test/non-faces')
-    faceImages = loadImages('data/' + 'large' + '/train/faces')
-    nonfaceImages = loadImages('data/' + 'large' + '/train/non-faces')
+    # faceImages = loadImages('data/' + 'large' + '/train/faces')
+    # nonfaceImages = loadImages('data/' + 'large' + '/train/non-faces')
+    faceImages = loadImages('data/faces')
+    nonfaceImages = loadImages('data/non-faces', verbose=True)
 
     if RawPredict:
         if GenerateFeatures:
@@ -27,9 +31,13 @@ if __name__ == '__main__':
         d = np.sum(yPredP == 1) / len(boostedCascade.P)
         f = np.sum(yPredN == 1) / len(boostedCascade.N)
     else:
+        print('Predicting...')
         yPredP = boostedCascade.predict(faceImages)
         d = np.sum(yPredP == 1) / len(faceImages)
         yPredN = boostedCascade.predict(nonfaceImages)
         f = np.sum(yPredN == 1) / len(nonfaceImages)
+        
+        print('Saving result...')
+        saveNegativeResult(nonfaceImages, yPredN, FPOutput, TNOutput, (1-f)/f)
         
     print('Detection rate: %f; False positive rate: %f' % (d, f))

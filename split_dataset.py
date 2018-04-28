@@ -3,11 +3,11 @@ import numpy as numpy
 import os
 from sklearn.model_selection import train_test_split
 
-DataPath = 'data/large/'
+DataPath = 'data/xxxlarge/'
 
-def split_data(source, train_dest, test_dest):
+def split_data(source, train_dest, test_dest, test_size):
     fileslist = os.listdir(source)
-    fileslist_train, fileslist_test = train_test_split(fileslist, test_size=0.6, shuffle=True)
+    fileslist_train, fileslist_test = train_test_split(fileslist, test_size=test_size, shuffle=True)
 
     os.makedirs(train_dest, exist_ok=True)
     os.makedirs(test_dest, exist_ok=True)
@@ -21,5 +21,6 @@ def split_data(source, train_dest, test_dest):
         os.rename(os.path.join(source, filename), os.path.join(test_dest, filename))
 
 if __name__ == '__main__':
-    split_data(DataPath + 'faces', DataPath + 'train/faces', DataPath + 'test/faces')
-    split_data(DataPath + 'non-faces', DataPath + 'train/non-faces', DataPath + 'test/non-faces')
+    split_data(DataPath + 'faces', DataPath + 'train/faces', DataPath + 'test/faces', 0.80)
+    split_data(DataPath + 'non-faces/fp-noface', DataPath + 'train/non-faces', DataPath + 'test/non-faces', 0.97)
+    split_data(DataPath + 'non-faces/tn-noface', DataPath + 'train/tn-nofaces', DataPath + 'test/non-faces', 0.97)

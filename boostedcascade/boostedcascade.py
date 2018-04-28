@@ -5,6 +5,7 @@
 # Author : Donny
 # 
 
+import os
 import copy
 import numpy as np
 from sklearn.utils import shuffle as skshuffle
@@ -68,6 +69,7 @@ class BoostedCascade:
         self.SCn = []
 
     def savefeaturesdata(self, filename):
+        os.makedirs(os.path.split(filename)[0], exist_ok=True)
         np.save(filename+'-variables', [self.detectWndH, self.detectWndW, self.features_cnt])
         np.save(filename+'-features_descriptions', self.features_descriptions)
         np.save(filename+'-P', self.P)
@@ -107,13 +109,14 @@ class BoostedCascade:
         assert height == self.detectWndH and width == self.detectWndW, \
                "Height and width mismatch with current data."
 
-        X = np.zeros((len(raw_data), features_cnt))
+        X = np.zeros((len(raw_data), self.features_cnt))
         for i in range(len(raw_data)):
             if verbose: print('Translating data NO.%d ...' % i)
             X[i] = self.Haarlike.extractFeatures(raw_data[i])[::-1]
         
         if not is_append:
-            self.P = self.N = np.array([])
+            if is_positive: self.P = np.array([])
+            else: self.N = np.array([])
         
         if is_positive:
             if len(self.P) == 0: self.P = X
@@ -453,7 +456,9 @@ class BoostedCascade:
         yPred = np.ones(len(test_set_))
         for ind in range(len(self.SCs)):
             yiPred, CI = self.SCs[ind].predict(test_set_[yPred == 1][:, 0:self.SCn[ind]])
-            yiPred[yiPred == 1] = (CI[yiPred == 1] >= self.thresholds[ind]).astype(int)
+            CI[yiPred != 1] = -CI[yiPred != 1]
+            yiPred = (CI >= self.thresholds[ind]).astype(int)
+            # yiPred[yiPred == 1] = (CI[yiPred == 1] >= self.thresholds[ind]).astype(int)
             yPred[yPred == 1] = yiPred # Exclude all rejected
         
         return yPred

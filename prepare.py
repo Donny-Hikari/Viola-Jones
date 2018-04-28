@@ -99,14 +99,12 @@ def generateFace(srcpath, destpath, listpath, verbose=False):
                             outimgname = os.path.basename(imgfilename) + '-' + str(faceind) + '.jpg'
                             scipy.misc.imsave(os.path.join(destpath, outimgname),
                                 image[y:y+h, x:x+w])
+                            faceind += 1
                             if verbose: print('Face image %s generated.' % outimgname)
                         except Exception as expt:
                             print(expt)
                             print(x,y,w,h, ' ',width, height)
-
-                        faceind += 1
     
-    faceind += 1
     print('Faces generation done with %d faces generated and %d faces lost.' % (faceind, cnt_miss))
     return faceind, cnt_miss
 
@@ -122,6 +120,72 @@ def stretchFace(srcpath, destpath, imgsize, verbose=False):
             scipy.misc.imsave(os.path.join(destpath, ognface), image)
     print('Face stretching done.')
 
+def generateNoFaceFromFaceBk(srcpath, destpath, listpath, imgsize, scanpad, verbose=False):
+    """Generate no-face images from the background of images contain faces.
+    """
+    os.makedirs(destpath, exist_ok=True)
+    if not isinstance(imgsize, tuple):
+        raise ValueError("imgsize must be tuple")
+    if not isinstance(scanpad, tuple):
+        raise ValueError("scanpad must be tuple")
+
+    cnt_miss = 0
+    nofaceind = 0
+    for facelist in os.listdir(listpath):
+        if facelist.endswith('-ellipseList.txt'):
+            print('Processing facelist %s' % facelist)
+            abs_facelist = os.path.abspath(os.path.join(listpath,facelist))
+            with open(abs_facelist) as f:
+                allline = f.readlines()
+                allline = [l.rstrip('\n') for l in allline]
+                il = 0
+                while il < len(allline):
+                    imgfilename = allline[il]; il+=1
+                    if not imgfilename:
+                        break
+
+                    if verbose: print('Processing face image %s.jpg' % imgfilename)
+                    try:
+                        image = scipy.misc.imread(os.path.join(srcpath,imgfilename + '.jpg'), mode='F')
+                    except FileNotFoundError:
+                        if verbose: print('Face image %s not found.' % imgfilename)
+                        cnt_miss += 1
+                        facecnt = int(allline[il]); il+=1+facecnt
+                        continue
+                        
+                    height, width = image.shape
+
+                    facecnt = int(allline[il]); il+=1
+                    for i in range(facecnt):
+                        ellipse = allline[il]; il+=1
+                        major_radius, minor_radius, angle, ctx, cty, acc = \
+                            map(float, ellipse.split())
+                        radian = angle*math.pi/180
+                        
+                        # May get some noise around, but it's fine.
+                        # There is noise when detecting.
+                        h = int(math.cos(radian)*major_radius*2)
+                        w = int(math.cos(radian)*minor_radius*2)
+                        if h < w: h = w
+                        else: w = h
+                        y = int(cty - h/2)
+                        if y < 0: y = 0
+                        elif y >= height: y = height - 1
+                        x = int(ctx - w/2)
+                        if x < 0: x = 0
+                        elif x >= width: x = width - 1
+
+                        image[y:y+h, x:x+w] = 0 # crop out face
+
+                    outimgname = os.path.join(destpath, os.path.basename(imgfilename))
+                    data = transformToData(image, imgsize[0], imgsize[1], scanpad[0], scanpad[1])
+                    for ind in range(len(data)):
+                        scipy.misc.imsave(outimgname + '-' + str(ind) + '.jpg', data[ind])
+                        nofaceind += 1
+    
+    print('Faces generation done with %d no-faces generated and %d face images lost.' % (nofaceind, cnt_miss))
+    return nofaceind, cnt_miss
+
 if __name__ == '__main__':
     DetectWndW = 24
     DetectWndH = 24
@@ -136,3 +200,8 @@ if __name__ == '__main__':
     generateFace('db/faces', 'db/pure-faces', 'db/FDDB-folds')
     stretchFace('db/pure-faces', 'data/faces',
                 imgsize=(DetectWndW, DetectWndH))
+    generateNoFaceFromFaceBk('db/faces',
+                             'data/non-faces/facebk',
+                             'db/FDDB-folds',
+                             imgsize=(DetectWndW, DetectWndH),
+                             scanpad=(ScanPadX, ScanPadY))
