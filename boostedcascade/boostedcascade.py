@@ -112,7 +112,7 @@ class BoostedCascade:
         X = np.zeros((len(raw_data), self.features_cnt))
         for i in range(len(raw_data)):
             if verbose: print('Translating data NO.%d ...' % i)
-            X[i] = self.Haarlike.extractFeatures(raw_data[i])[::-1]
+            X[i] = self.Haarlike.extractFeatures(raw_data[i], self.features_descriptions)
         
         if not is_append:
             if is_positive: self.P = np.array([])
@@ -154,10 +154,10 @@ class BoostedCascade:
         N = np.zeros((len(N_), features_cnt))
         for i in range(len(P_)):
             if verbose: print('Preparing positive data NO.%d.' % i)
-            P[i] = self.Haarlike.extractFeatures(P_[i])[::-1]
+            P[i] = self.Haarlike.extractFeatures(P_[i], descriptions)
         for j in range(len(N_)):
             if verbose: print('Preparing negative data NO.%d.' % j)
-            N[j] = self.Haarlike.extractFeatures(N_[j])[::-1]
+            N[j] = self.Haarlike.extractFeatures(N_[j], descriptions)
 
         self.P = P
         self.N = N
@@ -444,10 +444,10 @@ class BoostedCascade:
         N = np.zeros((len(N_), self.features_cnt))
         for i in range(len(P_)):
             if verbose: print('Preparing positive data NO.%d.' % i)
-            P[i] = self.Haarlike.extractFeatures(P_[i])[::-1]
+            P[i] = self.Haarlike.extractFeatures(P_[i], self.features_descriptions)
         for j in range(len(N_)):
             if verbose: print('Preparing negative data NO.%d.' % j)
-            N[j] = self.Haarlike.extractFeatures(N_[i])[::-1]
+            N[j] = self.Haarlike.extractFeatures(N_[i], self.featuers_descriptions)
 
         self.P = P
         self.N = N

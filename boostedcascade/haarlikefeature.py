@@ -29,8 +29,7 @@ class HaarlikeFeature:
     ]
 
     def __init__(self):
-        self.features_cnt = -1
-        self.wnd_size = (0, 0)
+        # self.wnd_size = (0, 0)
 
     def determineFeatures(self, width, height):
         """Determine the features count while the window is (width, height),
@@ -71,12 +70,10 @@ class HaarlikeFeature:
                             ind += 1
         
         # print(features_cnt, descriptions.shape)
-        self.wnd_size = (height, width)
-        self.features_cnt = features_cnt
-        self.descriptions = descriptions
-        return self.features_cnt, descriptions
+        # self.wnd_size = (height, width)
+        return features_cnt, descriptions
 
-    def extractFeatures(self, ognImage_):
+    def extractFeatures(self, ognImage_, features_descriptions):
         """Extract features from an image.
 
         Please call determineFeatures first.
@@ -94,17 +91,17 @@ class HaarlikeFeature:
         height, width = ognImage.shape
 
         # Call determineFeatures first.
-        if self.features_cnt == -1:
-            self.determineFeatures(width, height)
+        features_cnt = len(features_descriptions)
+        descriptions = features_descriptions
 
-        assert (height, width) == self.wnd_size
+        # assert (height, width) == self.wnd_size
         
-        features = np.zeros((int(self.features_cnt)))
+        features = np.zeros((int(features_cnt)))
 
         itgImage = self._getIntegralImage(ognImage)
 
         cnt = 0
-        for description in self.descriptions:
+        for description in descriptions:
             features[cnt] = self._getFeatureIn(
                 itgImage,
                 HaarlikeType(description[0]), 
