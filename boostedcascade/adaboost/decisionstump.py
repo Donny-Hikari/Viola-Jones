@@ -58,12 +58,14 @@ class DecisionStumpClassifier:
         assert n_samples == y.size
 
         processes = [None] * self.max_parallel_processes
-        schedules = [mp.Value('f', 0.0)] * self.max_parallel_processes
-        results = [mp.Queue()] * self.max_parallel_processes
+        schedules = [None] * self.max_parallel_processes
+        results = [None] * self.max_parallel_processes
 
         blocksize = math.ceil(n_features / self.max_parallel_processes)
         if blocksize <= 0: blocksize = 1
         for tid in range(self.max_parallel_processes):
+            schedules[tid] = mp.Value('f', 0.0)
+            results[tid] = mp.Queue()
             blockbegin = blocksize * tid
             if blockbegin >= n_features: break; # Has got enough processes
             blockend = blocksize * (tid+1)

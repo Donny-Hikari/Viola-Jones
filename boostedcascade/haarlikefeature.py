@@ -30,6 +30,7 @@ class HaarlikeFeature:
 
     def __init__(self):
         # self.wnd_size = (0, 0)
+        pass
 
     def determineFeatures(self, width, height):
         """Determine the features count while the window is (width, height),
