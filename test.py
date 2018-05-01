@@ -6,7 +6,7 @@ from boostedcascade import BoostedCascade, HaarlikeFeature, HaarlikeType
 RawPredict = False
 GenerateFeatures = False
 Database = 'large'
-ModelFile ='models/model-100-x3-l2/' + 'large'
+ModelFile ='models/model-100-l4/' + 'x4large'
 FPOutput = 'data/fp-noface'
 TNOutput = 'data/tn-noface'
 
@@ -17,8 +17,8 @@ if __name__ == '__main__':
     # nonfaceImages = loadImages('data/' + Database + '/test/non-faces')
     # faceImages = loadImages('data/' + 'large' + '/train/faces')
     # nonfaceImages = loadImages('data/' + 'large' + '/train/non-faces')
-    faceImages = loadImages('data/faces')
-    nonfaceImages = loadImages('data/non-faces', verbose=True)
+    faceImages = loadImages('data/all/faces')
+    nonfaceImages = loadImages('data/all/non-faces', verbose=True)
 
     if RawPredict:
         if GenerateFeatures:

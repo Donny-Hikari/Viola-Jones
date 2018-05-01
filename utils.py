@@ -17,12 +17,15 @@ def loadImages(path, verbose=False):
             img = scipy.misc.imread(abs_path, flatten=False, mode='F')
             images.append(img)
             if verbose:
-                sys.stdout.write("\033[K") # Clear line
-                print('\r%d images loaded.' % len(images), end='', flush=True)
-    if verbose: sys.stdout.write("\033[K") # Clear line
+                sys.stdout.write("\r\033[K") # Clear line
+                print('%d images loaded.' % len(images), end='', flush=True)
+    if verbose: sys.stdout.write("\r\033[K") # Clear line
     return images
 
 def saveNegativeResult(nofaceimgs, pred_n, fp_outdir, tn_outdir, tn_fp_rate):
+    os.makedirs(fp_outdir, exist_ok=True)
+    os.makedirs(tn_outdir, exist_ok=True)
+
     fp_imgs = []
     tn_imgs = []
     for ind, r in enumerate(pred_n.astype(int)):

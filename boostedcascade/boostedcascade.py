@@ -54,7 +54,8 @@ class BoostedCascade:
         # The window size of detector
         self.detectWndW, self.detectWndH = (-1, -1)
 
-        self.P = self.N = np.array([])
+        self.P = np.array([]); self.N = np.array([])
+        self.validX = np.array([]); self.validy = np.array([])
         self.features_cnt = -1
         self.features_descriptions = np.array([])
 
@@ -74,6 +75,8 @@ class BoostedCascade:
         np.save(filename+'-features_descriptions', self.features_descriptions)
         np.save(filename+'-P', self.P)
         np.save(filename+'-N', self.N)
+        np.save(filename+'-validX', self.validX)
+        np.save(filename+'-validy', self.validy)
 
     def loadfeaturesdata(self, filename):
         detectWndH, detectWndW, features_cnt = \
@@ -84,6 +87,8 @@ class BoostedCascade:
             np.load(filename+'-features_descriptions.npy')
         self.P = np.load(filename+'-P.npy')
         self.N = np.load(filename+'-N.npy')
+        self.validX = np.load(filename+'-validX.npy')
+        self.validy = np.load(filename+'-validy.npy')
 
     def loadfeaturesdataex(self, filename, is_positive):
         X = np.load(filename)
@@ -158,9 +163,21 @@ class BoostedCascade:
         for j in range(len(N_)):
             if verbose: print('Preparing negative data NO.%d.' % j)
             N[j] = self.Haarlike.extractFeatures(N_[j], descriptions)
+        
+        divlineP = int(len(P)*self.validset_rate)
+        divlineN = int(len(N)*self.validset_rate)
+
+        validset_X = np.concatenate(( P[0:divlineP], N[0:divlineN] ))
+        validset_y = np.concatenate(( np.ones(len(P[0:divlineP])), np.zeros(len(N[0:divlineN])) ))
+        # validset_X, validset_y = skshuffle(validset_X, validset_y, random_state=1)
+
+        P = P[divlineP:len(P)]
+        N = N[divlineN:len(N)]
 
         self.P = P
         self.N = N
+        self.validX = validset_X
+        self.validy = validset_y
         self.features_cnt = features_cnt
         self.features_descriptions = descriptions
 
@@ -176,17 +193,8 @@ class BoostedCascade:
         P = self.P
         N = self.N
 
-        divlineP = int(len(P)*self.validset_rate)
-        divlineN = int(len(N)*self.validset_rate)
-
-        validset_X = np.concatenate(( P[0:divlineP], N[0:divlineN] ))
-        validset_y = np.concatenate(( np.ones(len(P[0:divlineP])), np.zeros(len(N[0:divlineN])) ))
-        # validset_X, validset_y = skshuffle(validset_X, validset_y, random_state=1)
-
-        P = P[divlineP:len(P)]
-        N = N[divlineN:len(N)]
-
-        self.P = self.N = np.array([])
+        validset_X = self.validX
+        validset_y = self.validy
         
         self._initEvaluate(validset_X, validset_y)
 
@@ -198,12 +206,12 @@ class BoostedCascade:
             self.thresholds = []
             self.SCn = []
         else:
+            yPred = self._predictRaw(N)
+            N = N[yPred == 1]
+
             for ind in range(len(self.SCs)):
                 ySync, f1, D1, _ = self._evaluate(ind)
                 self._updateEvaluate(ySync)
-
-            yPred = self._predictRaw(N)
-            N = N[yPred == 1]
 
         features_used = self.features_cnt
         n_step = 1

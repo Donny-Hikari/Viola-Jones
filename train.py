@@ -3,7 +3,7 @@ from utils import loadImages
 from boostedcascade import BoostedCascade, HaarlikeFeature
 
 GenerateFeatures = False
-Database = 'xxxlarge'
+Database = 'x4large'
 ModelFile = 'data/' + Database + '/model-100/' + Database
 
 if __name__ == '__main__':
@@ -22,6 +22,6 @@ if __name__ == '__main__':
         boostedCascade = BoostedCascade.loadModel(ModelFile)
         print('Loading data...')
         boostedCascade.loadfeaturesdata('data/' + Database + '/train/features/' + Database)
-        print('Trainning...')
+        print('Training...')
         boostedCascade.train(is_continue=True, autosnap_filename=ModelFile, verbose=True)
         boostedCascade.saveModel(ModelFile)

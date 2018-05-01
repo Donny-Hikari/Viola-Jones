@@ -3,7 +3,7 @@ import numpy as numpy
 import os
 from sklearn.model_selection import train_test_split
 
-DataPath = 'data/xxxlarge/'
+DataPath = 'data/x5large/'
 
 def split_data(source, train_dest, test_dest, test_size):
     fileslist = os.listdir(source)
@@ -21,6 +21,6 @@ def split_data(source, train_dest, test_dest, test_size):
         os.rename(os.path.join(source, filename), os.path.join(test_dest, filename))
 
 if __name__ == '__main__':
-    split_data(DataPath + 'faces', DataPath + 'train/faces', DataPath + 'test/faces', 0.80)
-    split_data(DataPath + 'non-faces/fp-noface', DataPath + 'train/non-faces', DataPath + 'test/non-faces', 0.97)
-    split_data(DataPath + 'non-faces/tn-noface', DataPath + 'train/tn-nofaces', DataPath + 'test/non-faces', 0.97)
+    split_data(DataPath + 'faces', DataPath + 'train/faces', DataPath + 'test/faces', 0.72)
+    split_data(DataPath + 'non-faces/fp-noface', DataPath + 'train/non-faces', DataPath + 'test/non-faces', 0.90)
+    split_data(DataPath + 'non-faces/tn-noface', DataPath + 'train/tn-nofaces', DataPath + 'test/non-faces', 0.90)
