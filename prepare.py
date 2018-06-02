@@ -22,6 +22,26 @@ def transformToData(image, wndW, wndH, padX, padY):
             data.append(image[y:y+wndH, x:x+wndW])
     return data
 
+def transformToDataWithScale(image, wndW, wndH, padX, padY, min_size=0.0, max_size=1.0, step=0.5):
+    height, width = image.shape
+    data = []
+
+    if min_size * min(width, height) < 24:
+        min_size = 24.0 / min(width, height)
+    assert max_size > min_size
+    assert step > 0.0 and step < 1.0
+
+    si = max_size
+    while True:
+        scaledimg = scipy.misc.imresize(image, size=(int(si*height), int(si*width)), mode='F')
+        scaleddata = transformToData(scaledimg, wndW, wndH, padX, padY)
+        data.extend(scaleddata)
+        if si <= min_size: break
+        si = si * step
+        if si < min_size: si = min_size
+
+    return data
+
 def generateNonface(srcpath, destpath, imgsize, scanpad=(48,48)):
     """Generate non-face images in srcpath, and save to destpath.
     """
@@ -42,7 +62,7 @@ def generateNonface(srcpath, destpath, imgsize, scanpad=(48,48)):
                 print('Processing non-face image %s' % file_or_dir)
                 image = scipy.misc.imread(abs_srcpath, flatten=False, mode='F')
                 outname, ext = os.path.splitext(abs_destpath)
-                data = transformToData(image, imgsize[0], imgsize[1], scanpad[0], scanpad[1])
+                data = transformToDataWithScale(image, imgsize[0], imgsize[1], scanpad[0], scanpad[1])
                 for ind in range(len(data)):
                     scipy.misc.imsave(outname + '-' + str(ind) + ext, data[ind])
 
@@ -116,7 +136,7 @@ def stretchFace(srcpath, destpath, imgsize, verbose=False):
         if ognface.endswith('.jpg'):
             if verbose: print('Stretching face image %s' % ognface)
             image = scipy.misc.imread(os.path.join(srcpath, ognface), mode='F')
-            image = scipy.misc.imresize(image, size=imgsize, mode='F')
+            image = scipy.misc.imresize(image, size=imgsize, mode='F') # TODO size=(height, width)
             scipy.misc.imsave(os.path.join(destpath, ognface), image)
     print('Face stretching done.')
 
@@ -178,7 +198,8 @@ def generateNoFaceFromFaceBk(srcpath, destpath, listpath, imgsize, scanpad, verb
                         image[y:y+h, x:x+w] = 0 # crop out face
 
                     outimgname = os.path.join(destpath, os.path.basename(imgfilename))
-                    data = transformToData(image, imgsize[0], imgsize[1], scanpad[0], scanpad[1])
+                    # data = transformToData(image, imgsize[0], imgsize[1], scanpad[0], scanpad[1])
+                    data = transformToDataWithScale(image, imgsize[0], imgsize[1], scanpad[0], scanpad[1])
                     for ind in range(len(data)):
                         scipy.misc.imsave(outimgname + '-' + str(ind) + '.jpg', data[ind])
                         nofaceind += 1
@@ -194,14 +215,14 @@ if __name__ == '__main__':
     ScanPadX = 48
     ScanPadY = 48
 
-    generateNonface('db/non-faces', 'data/non-faces',
+    generateNonface('db/non-faces', 'data/non-faces-ex',
                     imgsize=(DetectWndW, DetectWndH),
                     scanpad=(ScanPadX, ScanPadY))
-    generateFace('db/faces', 'db/pure-faces', 'db/FDDB-folds')
-    stretchFace('db/pure-faces', 'data/faces',
-                imgsize=(DetectWndW, DetectWndH))
-    generateNoFaceFromFaceBk('db/faces',
-                             'data/non-faces/facebk',
-                             'db/FDDB-folds',
-                             imgsize=(DetectWndW, DetectWndH),
-                             scanpad=(ScanPadX, ScanPadY))
+    # generateFace('db/faces', 'db/pure-faces', 'db/FDDB-folds')
+    # stretchFace('db/pure-faces', 'data/faces',
+    #             imgsize=(DetectWndW, DetectWndH))
+    # generateNoFaceFromFaceBk('db/faces',
+    #                          'data/non-faces/facebk-ex',
+    #                          'db/FDDB-folds',
+    #                          imgsize=(DetectWndW, DetectWndH),
+    #                          scanpad=(ScanPadX, ScanPadY))
