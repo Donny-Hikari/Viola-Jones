@@ -1,3 +1,9 @@
+# 
+# mergerect.py
+#   Merge face rects produced by FaceDetector.
+# 
+# Author : Donny
+# 
 
 import queue
 

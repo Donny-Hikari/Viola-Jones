@@ -1,3 +1,9 @@
+# 
+# facedetector.py
+#   A face detector using BoostedCascade.
+# 
+# Author : Donny
+# 
 
 import time
 import ctypes

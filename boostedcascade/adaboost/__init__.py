@@ -1,8 +1,6 @@
 
 # Author: Donny
 
-import numpy as np
-
 from .adaboost import AdaBoostClassifier
 from .decisionstump import DecisionStumpClassifier
 

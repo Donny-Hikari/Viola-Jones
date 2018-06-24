@@ -1,3 +1,9 @@
+# 
+# detect.py
+#   A face detection example using FaceDetector and mergeRects.
+# 
+# Author : Donny
+# 
 
 import cv2
 import shutil
