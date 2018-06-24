@@ -7,6 +7,10 @@
 
 import os
 import copy
+import math
+import time
+import sys
+import multiprocessing as mp
 import numpy as np
 from sklearn.utils import shuffle as skshuffle
 
@@ -69,6 +73,9 @@ class BoostedCascade:
         #   The number of features used.
         self.SCn = []
 
+    def getDetectWnd(self):
+        return (self.detectWndH, self.detectWndW)
+
     def architecture(self):
         archi=""
         for ind, SC in enumerate(self.SCs):
@@ -114,20 +121,61 @@ class BoostedCascade:
         self.validX = np.load(filename+'-validX.npy')
         self.validy = np.load(filename+'-validy.npy')
 
-    def _translate(self, raw_data, verbose=False):
-        _, height, width = np.shape(raw_data)
+    def _parallel_translate(self, tid, range_, raw_data, result_output, schedule_output):
+        assert type(range_) == tuple
+        
+        for n in range(range_[0], range_[1]):
+            schedule_output.value = (n - range_[0]) / (range_[1] - range_[0])
+            x = self.Haarlike.extractFeatures(raw_data[n], self.features_descriptions)
+            result_output.put((n, x))
+
+    def _translate(self, raw_data, verbose=False, max_parallel_process=8):
+        n_samples, height, width = np.shape(raw_data)
 
         assert height == self.detectWndH and width == self.detectWndW, \
                "Height and width mismatch with current data."
 
-        X = np.zeros((len(raw_data), self.features_cnt))
-        for i in range(len(raw_data)):
-            if verbose: print('Translating data NO.%d.' % i)
-            X[i] = self.Haarlike.extractFeatures(raw_data[i], self.features_descriptions)
+        processes = [None] * max_parallel_process
+        schedules = [None] * max_parallel_process
+        results = mp.Queue()
+
+        blocksize = math.ceil(n_samples / max_parallel_process)
+        if blocksize <= 0: blocksize = 1
+        for tid in range(max_parallel_process):
+            schedules[tid] = mp.Value('f', 0.0)
+            blockbegin = blocksize * tid
+            if blockbegin >= n_samples: break
+            blockend = blocksize * (tid+1)
+            if blockend > n_samples: blockend = n_samples
+            processes[tid] = mp.Process(target=__class__._parallel_translate,
+                args=(self, tid, (blockbegin, blockend), raw_data, results, schedules[tid]))
+            processes[tid].start()
+
+        X = np.zeros((n_samples, self.features_cnt))
+        while True:
+            alive_processes = [None] * max_parallel_process
+            for tid in range(max_parallel_process):
+                alive_processes[tid] = processes[tid].is_alive()
+            if sum(alive_processes) == 0:
+                break
+
+            while not results.empty():
+                ind, x = results.get()
+                X[ind] = x
+
+            if verbose:
+                for tid in range(max_parallel_process):
+                    schedule = schedules[tid].value
+                    print('% 7.1f%%' % (schedule * 100), end='')
+                print('\r', end='', flush=True)
+
+            time.sleep(0.2)
+
+        sys.stdout.write("\033[K")
         
         return X
 
-    def prepare(self, P_, N_, shuffle=True, verbose=False):
+    def prepare(self, P_, N_, shuffle=True, verbose=False, max_parallel_process=8):
         """Prepare the data for training.
 
         Parameters
@@ -142,9 +190,9 @@ class BoostedCascade:
         assert np.shape(P_)[1:3] == np.shape(N_)[1:3], "Window sizes mismatch."
         _, self.detectWndH, self.detectWndW = np.shape(P_)
 
-        features_cnt, descriptions = \
+        self.features_cnt, descriptions = \
             self.Haarlike.determineFeatures(self.detectWndW, self.detectWndH)
-        descriptions = descriptions[::-1]
+        self.features_descriptions = descriptions[::-1]
 
         if shuffle:
             # If P_ is a list, this is faster than
@@ -152,15 +200,11 @@ class BoostedCascade:
             P_ = skshuffle(np.array(P_), random_state=1)
             N_ = skshuffle(np.array(N_), random_state=1)
 
-        P = np.zeros((len(P_), features_cnt))
-        N = np.zeros((len(N_), features_cnt))
-        for i in range(len(P_)):
-            if verbose: print('Preparing positive data NO.%d.' % i)
-            P[i] = self.Haarlike.extractFeatures(P_[i], descriptions)
-        for j in range(len(N_)):
-            if verbose: print('Preparing negative data NO.%d.' % j)
-            N[j] = self.Haarlike.extractFeatures(N_[j], descriptions)
-        
+        if verbose: print('Preparing positive data.')
+        P = self._translate(P_, verbose=verbose, max_parallel_process=max_parallel_process)
+        if verbose: print('Preparing negative data.')
+        N = self._translate(N_, verbose=verbose, max_parallel_process=max_parallel_process)
+
         divlineP = int(len(P)*self.validset_rate)
         divlineN = int(len(N)*self.validset_rate)
 
@@ -175,8 +219,6 @@ class BoostedCascade:
         self.N = N
         self.validX = validset_X
         self.validy = validset_y
-        self.features_cnt = features_cnt
-        self.features_descriptions = descriptions
 
     def train(self, is_continue=False, autosnap_filename=None, verbose=False):
         """Train the boosted cascade model.
@@ -419,6 +461,21 @@ class BoostedCascade:
 
         return yPred, CI
 
+    def translateToIntegralImage(self, image):
+        return self.Haarlike._getIntegralImage(image)
+
+    def predictIntegralImage(self, test_set_integral_images):
+        X = test_set_integral_images
+        yPred = np.ones(len(X))
+        for ind in range(len(self.SCs)):
+            yiPred, CI = self._strongPredict(self.SCs[ind], X[yPred == 1])
+            CI[yiPred != 1] = -CI[yiPred != 1]
+            yiPred = (CI >= self.thresholds[ind]).astype(int)
+            # yiPred[yiPred == 1] = (CI[yiPred == 1] >= self.thresholds[ind]).astype(int)
+            yPred[yPred == 1] = yiPred # Exclude all rejected
+        
+        return yPred
+
     def predict(self, test_set_):
         """Predict whether it's a face or not.
 
@@ -435,17 +492,8 @@ class BoostedCascade:
         X = np.zeros((len(test_set_), self.detectWndH+1, self.detectWndW+1))
         for i in range(len(test_set_)):
             X[i] = self.Haarlike._getIntegralImage(test_set_[i])
-
-        yPred = np.ones(len(X))
-        for ind in range(len(self.SCs)):
-            yiPred, CI = self._strongPredict(self.SCs[ind], X[yPred == 1])
-            CI[yiPred != 1] = -CI[yiPred != 1]
-            yiPred = (CI >= self.thresholds[ind]).astype(int)
-            # yiPred[yiPred == 1] = (CI[yiPred == 1] >= self.thresholds[ind]).astype(int)
-            yPred[yPred == 1] = yiPred # Exclude all rejected
+        return self.predictIntegralImage(X)
         
-        return yPred
-
     def preparePredictRaw(self, P_, N_, verbose=False):
         P = np.zeros((len(P_), self.features_cnt))
         N = np.zeros((len(N_), self.features_cnt))

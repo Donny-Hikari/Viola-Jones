@@ -80,7 +80,7 @@ class DecisionStumpClassifier:
                 for tid in range(self.max_parallel_processes):
                     alive_processes[tid] = processes[tid].is_alive()
                 if sum(alive_processes) == 0:
-                    break;
+                    break
 
                 for tid in range(self.max_parallel_processes):
                     schedule = schedules[tid].value

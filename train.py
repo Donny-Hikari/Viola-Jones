@@ -2,7 +2,7 @@
 from utils import loadImages
 from boostedcascade import BoostedCascade, HaarlikeFeature
 
-GenerateFeatures = True
+GenerateFeatures = False
 Database = 'x5large-2'
 ModelFile = 'data/' + Database + '/model-100/' + Database
 
